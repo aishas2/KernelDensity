@@ -1,0 +1,123 @@
+---
+title: "Chicago Bike Rack Kernel Density"
+author: "Aisha Syed"
+date: '2022-11-11'
+output: html_document
+---
+
+## Intoduction
+
+The following notebook contains code to create a kernel density map of bike racks in Chicago, Illinois.
+
+```{r, message=FALSE}
+#set up environment
+setwd("~/GEOG224/Assignment4_Kringing")
+library(sf)
+library(tmap)
+library(raster) # Needed for grid and kernel density surface
+library(adehabitatHR) # Needed for kernel density surface
+```
+
+## Load and Clean Data
+Now, I will load in data. The data was acquired from the following sources: <br>
+Chicago neighborhood boundaries (2018): Chicago Data Portal / City of Chicago <br>
+Bike rack locations (2012): Chicago Data Portal / City of Chicago
+
+```{r}
+chi = st_read("~/GEOG224/Assignment4_Kringing/data/Boundaries - Neighborhoods.geojson")
+bikeracks = read.csv("data/Bike_Racks.csv")
+
+#inspect chicago neighborhoods
+st_crs(chi) #4326
+tm_shape(chi) + tm_polygons()
+
+#change the crs into a projection that preserves area
+chi = st_transform(chi, 26971)
+tm_shape(chi) + tm_polygons()
+
+#inspect bike rack data
+str(bikeracks) #5164 observations (nonspatial)
+```
+
+It seems that the bike rack data already has numeric latitude and longitude data. We just have to convert the csv into spatial data.
+
+```{r}
+bikeracks_sf = st_as_sf(bikeracks, coords = c("Longitude", "Latitude"), crs = 4326) |>
+  st_transform(26971)
+
+str(bikeracks_sf) #5164 observations
+
+#see if there are any NA values
+subset(bikeracks_sf, is.na(bikeracks_sf[,"geometry"])) #There are no row with empty geometry! Yay!
+```
+
+## Plot Point Data
+Below, I will create a map using tmap that displays the bike racks in Chicago.
+```{r}
+tm_shape(chi) + tm_polygons(col = "white")+
+  tm_shape(bikeracks_sf) + tm_dots(col = "pink") +
+  tm_layout(main.title = "Chicago Bike Racks (2012)", main.title.size = 1, bg.color = "grey85") + tm_scale_bar(position=c("left", "bottom"))
+```
+
+## Create a Kernel Density Map
+Below, I created a kernel density map in Chicago to show the density of bike racks. I used href as the h parameter with a Epanechnikov kernel.
+
+```{r}
+#convert sf to sp
+bikeracks_sp = sf:::as_Spatial(bikeracks_sf)
+chi_sp = sf:::as_Spatial(chi)
+
+#create KDE with different h parameters
+kde_output_href = kernelUD(bikeracks_sp, h="href", grid = 1000)
+kde_output_lscv = kernelUD(bikeracks_sp, h="LSCV", grid = 1000)
+
+plot(kde_output_href)
+plot(kde_output_lscv)
+```
+
+I like when the h parameter is href, because it provides a clearer pattern opposed to when the h parameter is LSCV. From now on, I will utilize the result when the h parameter is href. Now, I will see which kernel I would like to use.
+
+```{r, warning=FALSE}
+#create KDE with different kernels
+kde_output_biv = kernelUD(bikeracks_sp, h="href", kern = "bivnorm", grid = 1000)
+kde_output_epa = kernelUD(bikeracks_sp, h="href", kern = "epa", grid = 1000)
+
+plot(kde_output_biv)
+plot(kde_output_epa)
+```
+I like using Epanechnikov kernel when the kern parameter = "epa" because it shows a distinct pattern on the north side of Chicago.
+
+```{r}
+#make the output as a raster
+kde = raster(kde_output_epa)
+bounding_box = bbox(chi_sp)
+
+masked_kde = mask(kde, chi)
+
+tm_shape(masked_kde, bbox = bounding_box) + tm_raster("ud", style = "quantile", n = 100, legend.show = F, palette = "RdPu") +
+  tm_shape(chi_sp) + tm_borders(alpha=.3, col = "white") +
+  tm_layout(main.title = "Chicago Bike Rack Density (2012)",  main.title.size = 1, frame = FALSE)+ tm_scale_bar(position=c("left", "bottom"))
+
+```
+
+## Create a Contour Map
+
+Below, I will create contours that reflect the density of bike racks in Chicago. I understand that this is not part of the assignment, but I like contour maps and think they look pretty. 
+
+```{r}
+#create contour ranges
+range75 <- getverticeshr(kde_output_epa, percent = 75)
+range50 <- getverticeshr(kde_output_epa, percent = 50)
+range25 <- getverticeshr(kde_output_epa, percent = 25)
+
+#make map
+tm_shape(chi) + tm_fill(col = "#f0f0f0") + tm_borders(alpha=.8, col = "white") +
+  tm_shape(range75) + tm_borders(alpha=.7, col = "hotpink1", lwd = 2) + tm_fill(alpha=.1, col = "hotpink1") +
+  tm_shape(range50) + tm_borders(alpha=.7, col = "hotpink3", lwd = 2) + tm_fill(alpha=.1, col = "hotpink3") +
+  tm_shape(range25) + tm_borders(alpha=.7, col = "hotpink4", lwd = 2) + tm_fill(alpha=.1, col = "hotpink4") +
+  tm_layout(main.title = "Chicago Bike Rack Density (2012)",  main.title.size = 1, bg.color = "grey85") + tm_scale_bar(position=c("left", "bottom"))
+```
+
+
+
+
