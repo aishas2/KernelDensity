@@ -1,0 +1,1 @@
+This repository demonstrates how to create a kernel density map of bike racks in Chicago, Illinois. Data was obtained from Chicago's Open Data Portal. This project may be used as a reference to convert between vector and raster geospatial data formats. 
