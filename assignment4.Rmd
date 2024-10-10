@@ -102,7 +102,7 @@ tm_shape(masked_kde, bbox = bounding_box) + tm_raster("ud", style = "quantile", 
 
 ## Create a Contour Map
 
-Below, I will create contours that reflect the density of bike racks in Chicago. I understand that this is not part of the assignment, but I like contour maps and think they look pretty. 
+Below, I will create contours that reflect the density of bike racks in Chicago.
 
 ```{r}
 #create contour ranges
